@@ -22,7 +22,6 @@
  *      → 丸め/単位/上下限
  *
  * ■注意
- *  - ショップイベント側のタグ（<ShopBuy:…>/<ShopSell:…> など）は**無視**します。
  *  - 式の中で使える識別子：price,id,type('item'|'weapon'|'armor'), v[ID], Math
  *
  * 【MITライセンス】
