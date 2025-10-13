@@ -1,7 +1,7 @@
 /*:
  * @target MZ
  * @plugindesc マップイベント機能追加プラグイン
- * @author KOJIRO OKITA
+ * @author 沖田小次郎
  * @help
  * ■ 概要
  *  イベントのメモ欄やプラグインコマンドで、NPC名/扉の行き先などの「名札」を頭上に表示します。
@@ -28,7 +28,7 @@
  * @arg labelText
  * @text ラベル名
  * @type string
- * @default テスト
+ * @default ジャンプ
  * @arg eventId
  * @text 対象イベントID
  * @type number
@@ -60,7 +60,7 @@
  * @arg labelText
  * @text ラベル名
  * @type string
- * @default テスト
+ * @default ジャンプ
  * @arg eventId
  * @text 対象イベントID
  * @type number
