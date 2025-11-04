@@ -96,6 +96,7 @@
  * @default 
  */
 
+
 (() => {
   "use strict";
 
@@ -151,7 +152,7 @@
     return Number(x) || 0;
   }
   function finalize(v) {
-    return clampPrice(roundByUnit(v));
+    return clampPrice(roundByUnit(v));       // ← applyRound はここから外す
   }
 
   function varProxy() {
@@ -198,6 +199,7 @@
     return null;
   }
   function parseConditionalSpec(text, ctx) {
+    // ★追加：売却不可キーワード
     const t = String(text).trim().toLowerCase();
     if (t === "none" || t === "nosell") return { type: "nosell" };
 
@@ -212,28 +214,25 @@
     const note = String(item?.note || "");
     const re = new RegExp(`<${key}\\[(\\d+)\\]\\s*:\\s*([^>]+)>`, "gi");
     let m, mul = 1, abs = null, nosell = false;
-    const ctx = {
-      price: Number(base),
-      id: Number(item?.id || 0),
-      type: objType(item)           // ★ item/weapon/armor を正しく渡す
-    };
+    const ctx = { price: Number(base), id: Number(item?.id || 0), type: objType(item) };
     while ((m = re.exec(note)) !== null) {
       const swId = Number(m[1]);
       if (!$gameSwitches || !$gameSwitches.value(swId)) continue;
       const spec = parseConditionalSpec(m[2], ctx);
       if (!spec) continue;
       if (spec.type === "mult") mul *= Number(spec.value);
-      else if (spec.type === "abs") abs = Number(spec.value);
-      else if (spec.type === "nosell" && key === "Sell") nosell = true;
+      else if (spec.type === "abs") abs = Number(spec.value); // 後勝ち
+      else if (spec.type === "nosell" && key === "Sell") nosell = true; // ★追加
     }
-    return { mul, abs, nosell };
+    return { mul, abs, nosell }; // ★戻り値に nosell を追加
   }
+
 
   // ---------- 買価 ----------
   const _WSB_price = Window_ShopBuy.prototype.price;
   Window_ShopBuy.prototype.price = function (item) {
     // DB基準のみ（ショップイベント倍率は廃止）
-    let p = Math.floor(_WSB_price.call(this, item));
+    let p = Math.floor(item.price ?? 0); // ← ここを直接DB価格に
     const mod = conditionalModFor(item, "Buy", p);
     p = (mod.abs != null) ? Math.floor(mod.abs) : Math.floor(p * mod.mul);
     return p;
@@ -261,7 +260,7 @@
     return cfg.enableEval ? { kind: "expr", value: raw } : null;
   }
   function computeSellBase(it) {
-    const itemBuy = itemLevelBuyPrice(it);
+    const itemBuy = itemLevelBuyPrice(it);  // ←基準（ショップ側は見ない）
     const id = Number(it?.id || 0);
     const type = objType(it);
     const spec = parseSellMeta(it);
@@ -290,13 +289,15 @@
     if (!item) return 0;
     if (hasNoSell(item)) return 0;
 
-    // 基礎（<sell:...> or 既定％）
-    let p = finalize(computeSellBase(item));
+    // 基礎（<sell:...> or 既定％）※ここではまだ丸めない
+    let p = computeSellBase(item);
 
     // アイテム個別 条件（Sell）
     const mod = conditionalModFor(item, "Sell", p);
     if (mod.nosell) return 0;
     p = (mod.abs != null) ? mod.abs : (p * mod.mul);
+
+    // 最後に一度だけ 丸め/単位/上下限 を適用
     return finalize(p);
   };
 
@@ -307,7 +308,9 @@
     if (cfg.nosellBehavior === "hide") {
       this._data = this._data.filter(it => {
         if (!it) return false;
+        // 無条件の <nosell> / <sell:none>
         if (hasNoSell(it)) return false;
+        // ★追加：条件 <Sell[ID]:none>（ONの時だけ非表示）
         const mod = conditionalModFor(it, "Sell", 0);
         if (mod.nosell) return false;
         return true;
@@ -320,22 +323,25 @@
     const _origSellingPrice = Scene_Shop.prototype.sellingPrice;
     Scene_Shop.prototype.sellingPrice = function () {
       const item = this._item;
+      // 売るときにだけ適用
       if (this._commandWindow && this._commandWindow.currentSymbol() === 'sell') {
         if (this._sellWindow && item && this._sellWindow.price) {
-          return this._sellWindow.price(item);
+          return this._sellWindow.price(item); // ← 売価を必ず通す
         }
       }
+      // それ以外（買う時など）は元の処理に戻す
       return _origSellingPrice ? _origSellingPrice.call(this) : 0;
     };
 
     const _numSetup = Window_ShopNumber.prototype.setup;
     Window_ShopNumber.prototype.setup = function (item, max, price) {
       const scene = SceneManager._scene;
+      // 売却タブの時だけ強制
       if (scene && scene._commandWindow && scene._commandWindow.currentSymbol() === 'sell') {
         const real = scene.sellingPrice();
         _numSetup.call(this, item, max, real);
       } else {
-        _numSetup.call(this, item, max, price);
+        _numSetup.call(this, item, max, price); // 買う時はそのまま
       }
     };
   })();
@@ -344,39 +350,36 @@
   (() => {
     "use strict";
 
+    // 今この瞬間 nosell かを判定（無条件 <nosell> も条件付き <Sell[n]:none> も対象）
     function isNoSellNow(item) {
       if (!item) return false;
+      // 無条件 <nosell> / <sell:none>
       const m = item.meta || {};
       if (Object.prototype.hasOwnProperty.call(m, "nosell")) return true;
       if (typeof m.sell === "string" && m.sell.trim().toLowerCase() === "none") return true;
+      // 条件付き <Sell[n]:none>
       const mod = (function () {
+        // conditionalModFor はプラグイン本体の関数を使う
         try { return conditionalModFor(item, "Sell", 0); } catch (_) { return { nosell: false }; }
       })();
       return !!mod.nosell;
     }
 
+    // 1) 売るウィンドウの「選択可否」を nosell で必ず無効化
     const _isEnabled = Window_ShopSell.prototype.isEnabled;
     Window_ShopSell.prototype.isEnabled = function (item) {
-      if (isNoSellNow(item)) return false;
-      const enabled = _isEnabled
-        ? _isEnabled.call(this, item)
-        : (item && this.price(item) > 0);
-
-      if (!enabled && cfg.allowZero && item) {
-        // 「0Gだから選択不可」だったケースでは、0円売却を許可する
-        if (this.price && this.price(item) === 0) {
-          return true;
-        }
-      }
-      return enabled;
+      if (isNoSellNow(item)) return false; // ← ここで強制的に無効化
+      // 既定の「価格>0」チェックも生かす
+      return _isEnabled ? _isEnabled.call(this, item) : (item && this.price(item) > 0);
     };
 
+    // 2) 念のため、実行時（売却確定）でもブロック
     const _doSell = Scene_Shop.prototype.doSell;
     Scene_Shop.prototype.doSell = function (number) {
       const it = this._item;
       if (isNoSellNow(it)) {
         SoundManager.playBuzzer();
-        return;
+        return; // 売却を行わない
       }
       _doSell.call(this, number);
     };
