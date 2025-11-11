@@ -7,6 +7,14 @@
 
 ## プラグイン一覧
 
+---
+
+### [OKT_ParamLimiter](docs/OKT_ParamLimiter.md)  
+
+標準パラメータに上下限とリミットブレイク用の上限を設定し、  
+装備の `<LimitBreak>` タグで上限突破させる能力値を指定できるプラグインです。
+
+
 ### [OKT_HiddenTypeFilter](docs/OKT_HiddenTypeFilter.md)
 武器・防具・スキルタイプをメニューやUIから非表示にできるプラグイン。  
 隠しスキルや隠しアイテムを実装する際に便利です。
