@@ -22,11 +22,11 @@
 ### タグ
 
 - 装備のメモ欄  
-  - `\<LimitBreak\>`  
+  - `<LimitBreak>`  
     - すべての標準パラメータをリミットブレイク対象にします。
-  - `\<LimitBreak[2]\>`  
+  - `<LimitBreak[2]>`  
     - 指定した paramId（例: 2 = 攻撃力）のみブレイクさせます。
-  - `\<LimitBreak[0,2,4]\>`  
+  - `<LimitBreak[0,2,4]>`  
     - 複数の paramId をカンマ区切りで指定できます。
 
 ※ paramId の対応は MZ の標準どおりです（0:最大HP, 1:最大MP, 2:攻撃力, ...）。
